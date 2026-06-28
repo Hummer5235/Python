@@ -1,0 +1,404 @@
+# Урок 12
+#12: Пополнение жизней
+import pygame
+import random
+
+pygame.init()
+
+#Размеры экрана
+display_width = 800
+display_height = 600
+display = pygame.display.set_mode((display_width,display_height)) # Установить размеры экрана
+pygame.display.set_caption("Run Dino! Run!") # Установить название
+icon = pygame.image.load("app_icon.png") # Загрузить изображение
+pygame.display.set_icon(icon) # Установить иконку
+
+
+#Звуки
+pygame.mixer.music.load("Pygame materials/Sounds/Background_space.mp3")
+pygame.mixer.music.set_volume(0.5)
+
+lose_sound = pygame.mixer.Sound("Pygame materials/Sounds/lose.wav")
+heart_plus_sound = pygame.mixer.Sound("Pygame materials/Sounds/hp+.wav")
+
+
+land_img = pygame.image.load("Pygame materials/Backgrounds/Land.jpg") # Фон
+
+cactus_img = [pygame.image.load("Pygame materials/Objects/Cactus0.png"),
+              pygame.image.load("Pygame materials/Objects/Cactus1.png"),
+              pygame.image.load("Pygame materials/Objects/Cactus2.png")]
+
+cactus_options = [69,449,37,410,40,420] # Параметры кактусов
+
+stone_img = [pygame.image.load("Pygame materials/Objects/Stone0.png"),
+             pygame.image.load("Pygame materials/Objects/Stone1.png")]  # Список Камней
+
+cloud_img = [pygame.image.load("Pygame materials/Objects/Cloud0.png"),
+             pygame.image.load("Pygame materials/Objects/Cloud1.png")]  # Список Облаков
+
+dino_img = [pygame.image.load("Pygame materials/Dino/Dino0.png"),
+            pygame.image.load("Pygame materials/Dino/Dino1.png"),
+            pygame.image.load("Pygame materials/Dino/Dino2.png"),
+            pygame.image.load("Pygame materials/Dino/Dino3.png"),
+            pygame.image.load("Pygame materials/Dino/Dino4.png")] # Список изображений героя
+
+health_img = pygame.image.load("Pygame materials/Effects/heart.png")
+health_img = pygame.transform.scale(health_img,(40,40))
+
+#Счетчик для изображений
+img_counter = 0
+
+health = 3
+
+
+class Object:
+    def __init__(self,x,y,width,image,speed):
+        self.x = x
+        self.y = y
+        self.width = width # Ширина
+        self.image = image # Картинка
+        self.speed = speed # Скорость
+
+    def move(self):
+        if self.x >= - self.width:
+            display.blit(self.image,(self.x,self.y))
+            # pygame.draw.rect(display, (230, 230, 0), (self.x, self.y, self.width, self.height))
+            self.x -= self.speed  # Сместить кактус влево
+            return True
+
+        else:
+            #self.x = display_width + 100 + random.randint(-80,80)
+            return False
+
+    def return_self(self,radius, y, width, image):
+        self.x = radius
+        self.y = y
+        self.width = width
+        self.image = image
+
+#Персонаж
+usr_width = 60   # Ширина персонажа
+usr_height = 100 # Высота персонажа
+usr_x = display_width //3 # Координата X героя
+usr_y = display_height -100 - usr_height
+
+#Кактус
+cactus_width = 20  # Ширина кактуса
+cactus_height = 70 # Высота кактуса
+cactus_x = display_width - 50 # Координата X кактуса
+cactus_y = display_height - 100 - cactus_height # Координата Y кактуса
+
+
+#FPS
+clock = pygame.time.Clock()
+
+#Прыжок
+make_jump = False
+jump_counter = 30 # Счетчик прыжков
+
+scores = 0 # Очки
+max_scores = 0  # Максимальные очки
+cactuses_counter = [] # Счетчик кактусов
+
+
+
+def run_game():
+    global make_jump
+    pygame.mixer.music.play(-1) # Играть музыку
+
+    game = True
+    cactus_arr = [] # Пустой список для кактусов
+    create_cactus_arr(cactus_arr) # Заполнить список кактусов
+    land = Object(0, 0, 800, land_img, 4) # Создание фона как объекта класса Object
+    land2 = Object(display_width, 0, 800, land_img, 4) # Создание фона2 как объекта класса Object
+    stone,cloud = open_random_objects() #    Создать случайный объект
+    heart = Object(display_width,280,30,health_img,4) # Создать сердце
+
+
+    while game:
+        for event in pygame.event.get(): # Пройтись по всем событиям
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
+
+        keys = pygame.key.get_pressed() # Получить кортеж нажатых клавиш
+        count_scores(cactus_arr)  # Подсчет очков
+
+        move_objects(stone, cloud, land, land2)  # Двигать камни и облака
+        draw_array(cactus_arr)  # Отрисовать список
+        print_text("Scores: " + str(scores), 630, 30)  # Отрисовка очков
+        draw_dino()
+        hearts_plus(heart)
+
+        if keys[pygame.K_SPACE]: # Если нажата клавиша пробел
+            make_jump = True   # Разрешить прыжок
+
+        if keys[pygame.K_ESCAPE]: # При нажатии Escape запустить паузу
+            pause()
+        heart.move()
+        show_health()
+
+        if make_jump:
+            jump()
+
+        if check_collision(cactus_arr): # Проверка касаний
+            game = False
+
+
+        pygame.display.update() # Обновить дисплей
+        clock.tick(60)
+    return game_over()
+
+
+def jump():
+    global  usr_y,jump_counter ,make_jump
+    if jump_counter >= -30:
+        usr_y -= jump_counter / 2 # Поднимаем вверх на jump_counter
+        jump_counter -= 1 # Уменьшаем jump_counter ( Замедляем прыжок)
+    else:
+        # Как только опустились на землю (jump_counter >= -30) вернуть все значения вначало
+        jump_counter = 30
+        make_jump = False
+
+
+#Создать массив кактусов
+def create_cactus_arr(array):
+    choice = random.randrange(0,3) # Выбор
+    img = cactus_img[choice]
+    width = cactus_options[choice * 2]
+    height = cactus_options[choice * 2 + 1 ]
+    array.append(Object(display_width + 50, height, width, img, 4))
+
+    choice = random.randrange(0, 3)  # Выбор
+    img = cactus_img[choice]
+    width = cactus_options[choice * 2]
+    height = cactus_options[choice * 2 + 1]
+    array.append(Object(display_width + 300, height, width, img, 4))
+
+    choice = random.randrange(0, 3)  # Выбор
+    img = cactus_img[choice]
+    width = cactus_options[choice * 2]
+    height = cactus_options[choice * 2 + 1]
+    array.append(Object(display_width + 600, height, width, img, 4))
+
+
+
+def find_radius(array):
+    maximum = max(array[0].x,array[1].x,array[2].x)
+
+    if maximum < display_width:
+        radius = display_width
+        if radius - maximum < 50:
+            radius += 150
+    else:
+        radius = maximum
+
+    choice = random.randrange(0,5) # Переменная случайного выбора
+    if choice == 0:
+        radius += random.randrange(10,15)
+    else:
+        radius += random.randrange(200,350)
+
+    return radius
+
+
+#Отрисовать список
+def draw_array(array):
+    for cactus in array:
+        check = cactus.move()
+        if not check:
+            object_return(array,cactus)
+
+def object_return(objects,obj):
+    radius = find_radius(objects)  # Найти радиус
+
+    choice = random.randrange(0, 3)  # Выбор
+    img = cactus_img[choice]
+    width = cactus_options[choice * 2]
+    height = cactus_options[choice * 2 + 1]
+
+    obj.return_self(radius, height, width, img)  # Вернуть себя
+
+
+def open_random_objects():
+    choice = random.randrange(0,2)
+    img_of_stone= stone_img[choice]
+
+    choice = random.randrange(0, 2)
+    img_of_cloud = cloud_img[choice]
+
+    stone = Object(display_width,display_height-80,10,img_of_stone,4)
+    cloud = Object(display_width,80,70,img_of_cloud,2)
+
+    return stone,cloud
+
+def move_objects(stone,cloud,land,land2):
+    check = land.move()
+    if not check:
+        land.return_self(display_width, 0, land.width, land_img)
+
+    check = land2.move()
+    if not check:
+        land2.return_self(display_width, 0, land2.width, land_img)
+
+    check = stone.move()
+    if not check:
+        choice = random.randrange(0,2)
+        img_of_stone = stone_img[choice]
+        stone.return_self(display_width,500 + random.randrange(10,80),stone.width,img_of_stone)
+
+    check = cloud.move()
+    if not check:
+        choice = random.randrange(0, 2)
+        img_of_cloud = cloud_img[choice]
+        cloud.return_self(display_width, random.randrange(10, 200), cloud.width, img_of_cloud)
+
+def draw_dino():
+    global img_counter
+    if img_counter == 25 :
+        img_counter = 0
+    display.blit(dino_img[img_counter//5],(usr_x,usr_y)) # Отрисовать динозавра
+    img_counter += 1 # Увеличить счетчик на 1
+
+def print_text(message, x, y,  font_color = (0,0,0), font_type = None, font_size = 45 ):
+    font_type = pygame.font.Font(font_type , font_size)
+    text = font_type.render(message, True, font_color)
+    display.blit(text, (x, y))
+
+def pause():
+    paused = True
+    pygame.mixer.music.pause()
+    while paused:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
+        print_text("Paused. Press enter to continue", 160, 300)
+
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_RETURN]: # При нажатии Enter закончить цикл
+            paused = False
+
+        pygame.display.update()
+        clock.tick(15)
+    pygame.mixer.music.unpause()
+
+def check_collision(barriers):
+    for barrier in barriers:
+        if usr_y + usr_height - 20 >= barrier.y:
+            if barrier.x <= usr_x + 15 <= barrier.x + barrier.width:
+                if not check_health():
+                    return True
+                else:
+                    object_return(barriers, barrier)
+
+            elif barrier.x <= usr_x + usr_width - 20 <= barrier.x + barrier.width:
+                if not check_health():
+                    return True
+                else:
+                    object_return(barriers, barrier)
+
+def count_scores (barriers):
+    global scores,cactuses_counter
+
+    for barrier in barriers:
+        if barrier.x <= usr_x + usr_width/2 <= barrier.x +barrier.width:
+            if usr_y +usr_height - 5 <= barrier.y:
+                if not barrier in cactuses_counter:
+                    cactuses_counter.append(barrier)
+
+    if jump_counter == -30 :
+        scores += len(cactuses_counter)
+        cactuses_counter.clear()
+
+
+def game_over():
+    global scores , max_scores
+    pygame.mixer.music.stop()
+    pygame.mixer.Sound.play(lose_sound)
+    if scores > max_scores:
+        max_scores = scores
+
+    stopped = True
+    while stopped:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
+        print_text("Game over.Press Enter to play again, Esc to exit", 55, 300)
+        print_text("Max scores: "+str(max_scores), 300, 350) # Отрисовка максимальных очков
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_RETURN]:  # При нажатии Enter продолжить игру
+            return True
+        if keys[pygame.K_ESCAPE]:  # При нажатии Esc закончить игру
+            return False
+
+        pygame.display.update()
+        clock.tick(15)
+
+def show_health():
+    global health
+    show = 0
+    x = 20
+    while show != health:
+        display.blit(health_img,(x,30))
+        x+=40
+        show += 1
+
+def check_health():
+    global health
+    health -= 1
+    if health == 0:
+        return False
+    else:
+        return True
+
+def hearts_plus(heart):
+    global health,usr_x,usr_y,usr_width,usr_height
+
+    if heart.x <= heart.width:
+        radius = display_width + random.randrange(500, 1000)
+        heart.return_self(radius, random.randrange(250,470), heart.width, heart.image)
+
+    if usr_x <= heart.x <= usr_x+usr_width:
+        if usr_y <= heart.y <= usr_y+usr_height:
+            pygame.mixer.Sound.play(heart_plus_sound)
+            if health < 5:
+                health += 1
+            radius = display_width + random.randrange(1000,3000)
+            heart.return_self(radius,random.randrange(250,470),heart.width,heart.image)
+
+
+
+while run_game():
+    scores = 0
+    health = 3
+    cactuses_counter = []
+    make_jump = False
+    jump_counter = 30
+    usr_y = display_height -100 - usr_height
+pygame.quit()
+quit()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

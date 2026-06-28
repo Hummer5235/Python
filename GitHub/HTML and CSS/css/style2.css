@@ -1,0 +1,44 @@
+
+body {
+    margin: 0px;
+    background: url('../img/bg.jpg');
+    font-family: Consolas;
+    line-height: 1.5;
+}
+
+.card {
+    width: 400px;
+    margin: 30px auto;
+    padding: 20px;
+    background-color: #fff;
+    box-shadow: 0 5px 10px #ccc ;
+    border-radius: 10px;
+}
+
+.card-photo {
+    display: block;
+    width: 200px ;
+    height: 200px ;
+    border-radius: 50%;
+    margin: 0 auto;
+}
+
+.card-title {
+    font-size: 24px;
+    text-align: center;
+    color: #58b665;
+}
+
+.card-text {
+    font-size: 14px;
+
+}
+
+.card-subtitle{
+    font-size: 18px;
+}
+
+.card-list {
+    padding-left: 0;
+    list-style-position: inside;
+}

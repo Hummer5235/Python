@@ -1,0 +1,5 @@
+Hello1
+Hello2
+Hello3
+New string
+Новая строка

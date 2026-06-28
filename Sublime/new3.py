@@ -1,0 +1,4 @@
+spisok= [ "Apple","Banana"]
+
+
+

@@ -1,0 +1,60 @@
+2025-01-17 15:28:57,474 INFO successful result
+2025-01-17 15:28:57,814 INFO Start polling
+2025-01-17 15:28:57,888 INFO Run polling for bot @Good_Big44_Bot id=6832374501 - 'СуперБот'
+2025-01-17 15:29:46,787 INFO Сообщения бота : []
+2025-01-17 15:29:47,021 INFO Update id=932156065 is handled. Duration 233 ms by bot id=6832374501
+2025-01-17 15:29:50,955 INFO Сообщения бота : []
+2025-01-17 15:29:51,140 INFO Update id=932156066 is handled. Duration 187 ms by bot id=6832374501
+2025-01-17 15:29:52,036 INFO Update id=932156067 is handled. Duration 156 ms by bot id=6832374501
+2025-01-17 15:29:52,703 INFO Сообщения бота : []
+2025-01-17 15:29:52,848 INFO Записано сообщение бота : 11028 от бота
+2025-01-17 15:29:52,848 INFO Сообщения пользователя : []
+2025-01-17 15:29:52,977 INFO Записано сообщение бота : 11029 от бота
+2025-01-17 15:29:53,124 INFO Записано сообщение бота : 11030 от бота
+2025-01-17 15:29:53,134 INFO Update id=932156068 is handled. Duration 437 ms by bot id=6832374501
+2025-01-17 15:29:54,626 INFO Сообщения бота : [11028, 11029, 11030]
+2025-01-17 15:29:54,626 INFO Сообщения бота удалены : [11028, 11029, 11030]
+2025-01-17 15:29:54,858 INFO Update id=932156069 is handled. Duration 765 ms by bot id=6832374501
+2025-01-17 15:29:55,778 INFO Сообщения бота : []
+2025-01-17 15:29:56,404 INFO successful result
+2025-01-17 15:29:56,567 INFO Update id=932156070 is handled. Duration 796 ms by bot id=6832374501
+2025-01-17 16:08:00,342 INFO Polling stopped
+2025-01-17 16:08:00,343 INFO Polling stopped for bot @Good_Big44_Bot id=6832374501 - 'СуперБот'
+2025-01-17 16:08:00,598 ERROR unhandled exception during asyncio.run() shutdown
+task: <Task finished name='Task-1' coro=<main() done, defined at C:\Users\zahar\Desktop\Python\Studying\projects\Telegram_Multi_Bot\main.py:10> exception=TypeError("'int' object is not callable")>
+Traceback (most recent call last):
+  File "C:\Users\zahar\AppData\Local\Programs\Python\Python39\lib\asyncio\runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "C:\Users\zahar\AppData\Local\Programs\Python\Python39\lib\asyncio\base_events.py", line 629, in run_until_complete
+    self.run_forever()
+  File "C:\Users\zahar\AppData\Local\Programs\Python\Python39\lib\asyncio\windows_events.py", line 316, in run_forever
+    super().run_forever()
+  File "C:\Users\zahar\AppData\Local\Programs\Python\Python39\lib\asyncio\base_events.py", line 596, in run_forever
+    self._run_once()
+  File "C:\Users\zahar\AppData\Local\Programs\Python\Python39\lib\asyncio\base_events.py", line 1854, in _run_once
+    event_list = self._selector.select(timeout)
+  File "C:\Users\zahar\AppData\Local\Programs\Python\Python39\lib\asyncio\windows_events.py", line 434, in select
+    self._poll(timeout)
+  File "C:\Users\zahar\AppData\Local\Programs\Python\Python39\lib\asyncio\windows_events.py", line 783, in _poll
+    status = _overlapped.GetQueuedCompletionStatus(self._iocp, ms)
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\zahar\Desktop\Python\Studying\projects\Telegram_Multi_Bot\main.py", line 33, in main
+    await dp.start_polling(bot)
+  File "C:\Users\zahar\Desktop\Python\Studying\projects\Telegram_Multi_Bot\venv\lib\site-packages\aiogram\dispatcher\dispatcher.py", line 543, in start_polling
+    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+  File "C:\Users\zahar\AppData\Local\Programs\Python\Python39\lib\asyncio\tasks.py", line 411, in wait
+    return await _wait(fs, timeout, return_when, loop)
+  File "C:\Users\zahar\AppData\Local\Programs\Python\Python39\lib\asyncio\tasks.py", line 524, in _wait
+    await waiter
+asyncio.exceptions.CancelledError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\zahar\Desktop\Python\Studying\projects\Telegram_Multi_Bot\main.py", line 35, in main
+    logging.WARN('Ошибка работы программы',)
+TypeError: 'int' object is not callable

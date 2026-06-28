@@ -1,0 +1,11 @@
+Лог WARNING
+Лог ERROR
+Лог CRITICAL
+Лог WARNING
+Лог ERROR
+Лог CRITICAL
+Произошло деление на 0
+Traceback (most recent call last):
+  File "C:\Users\PC\Desktop\Python\Studying\Stepik\Stepik_Telegram\Logging\logging_config_example\module_2.py", line 47, in devide_number
+    return dividend / devider
+ZeroDivisionError: division by zero

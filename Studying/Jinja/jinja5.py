@@ -1,0 +1,16 @@
+#5: Конструкции include и import
+
+from jinja2 import Template,FileSystemLoader,Environment
+users = [{"name":"Андрей","old":25,"weight":85},
+        {"name":"Иван","old":29,"weight":82},
+        {"name":"Алексей","old":23,"weight":76},
+        {"name":"Николай","old":13,"weight": 58},
+        {"name":"Женя","old":32,"weight":94}]
+
+file_loader = FileSystemLoader("templates") # Файловый загрузчик. Папка с шаблонами
+env = Environment(loader=file_loader) # Окружение
+
+# tm = env.get_template("page.htm") # Формирует экз класса Template на основе содержимого файла main.htm
+tm = env.get_template("page2.htm")
+msg = tm.render(domain = "proproprogs.ru",title="Про  ")
+print(msg)

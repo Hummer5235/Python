@@ -1,0 +1,1 @@
+print("cattacHellocatHellocat".strip("act"))

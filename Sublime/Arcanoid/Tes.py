@@ -1,0 +1,16 @@
+
+
+
+
+if (a < b) {
+        var t = a;
+        a = b;
+        b = t;
+    }
+    while (b != 0) {
+        var r = a % b;
+        a = b;
+        b = r;
+    }
+    return a;
+}

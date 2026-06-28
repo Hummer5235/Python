@@ -1,0 +1,308 @@
+Имя:
+
+Дата:
+
+Курс
+
+               Проверка знания столиц штатов (Билет 2)
+
+1.Выберите столицу штата South Dakota:
+A, Columbia
+B, Pierre
+C, Lansing
+D, Helena
+
+2.Выберите столицу штата Connecticut:
+A, Harrisburg
+B, Austin
+C, Indianapolis
+D, Hartford
+
+3.Выберите столицу штата Nebraska:
+A, Lincoln
+B, Providence
+C, Des Moines
+D, Columbia
+
+4.Выберите столицу штата North Dakota:
+A, Bismarck
+B, Oklahoma City
+C, Raleigh
+D, Providence
+
+5.Выберите столицу штата Alaska:
+A, Juneau
+B, Nashville
+C, Annapolis
+D, Sacramento
+
+6.Выберите столицу штата Minnesota:
+A, Bismarck
+B, Oklahoma City
+C, Boston
+D, Saint Paul
+
+7.Выберите столицу штата Vermont:
+A, Lansing
+B, Frankfort
+C, Richmond
+D, Montpelier
+
+8.Выберите столицу штата California:
+A, Annapolis
+B, Dover
+C, Sacramento
+D, Tallahassee
+
+9.Выберите столицу штата Arkansas:
+A, Montpelier
+B, Richmond
+C, Little Rock
+D, Tallahassee
+
+10.Выберите столицу штата Illinois:
+A, Boston
+B, Sacramento
+C, Springfield
+D, Madison
+
+11.Выберите столицу штата Colorado:
+A, Denver
+B, Pierre
+C, Montpelier
+D, Columbia
+
+12.Выберите столицу штата Washington:
+A, Olympia
+B, Boise
+C, Bismarck
+D, Columbia
+
+13.Выберите столицу штата Virginia:
+A, Jefferson City
+B, Albany
+C, Hartford
+D, Richmond
+
+14.Выберите столицу штата Missouri:
+A, Juneau
+B, Jefferson City
+C, Montgomery
+D, Des Moines
+
+15.Выберите столицу штата Oregon:
+A, Nashville
+B, Honolulu
+C, Indianapolis
+D, Salem
+
+16.Выберите столицу штата Michigan:
+A, Lansing
+B, Pierre
+C, Frankfort
+D, Annapolis
+
+17.Выберите столицу штата Oklahoma:
+A, Dover
+B, Bismarck
+C, Oklahoma City
+D, Carson City
+
+18.Выберите столицу штата Utah:
+A, Juneau
+B, Salt Lake City
+C, Oklahoma City
+D, Carson City
+
+19.Выберите столицу штата New Jersey:
+A, Columbia
+B, Atlanta
+C, Trenton
+D, Frankfort
+
+20.Выберите столицу штата North Carolina:
+A, Concord
+B, Annapolis
+C, Tallahassee
+D, Raleigh
+
+21.Выберите столицу штата Wisconsin:
+A, Tallahassee
+B, Richmond
+C, Trenton
+D, Madison
+
+22.Выберите столицу штата Hawaii:
+A, Honolulu
+B, Salem
+C, Dover
+D, Providence
+
+23.Выберите столицу штата Mississippi:
+A, Providence
+B, Harrisburg
+C, Jackson
+D, Topeka
+
+24.Выберите столицу штата Iowa:
+A, Bismarck
+B, Frankfort
+C, Des Moines
+D, Topeka
+
+25.Выберите столицу штата New Mexico:
+A, Hartford
+B, Austin
+C, Annapolis
+D, Santa Fe
+
+26.Выберите столицу штата Massachusetts:
+A, Olympia
+B, Des Moines
+C, Bismarck
+D, Boston
+
+27.Выберите столицу штата Wyoming:
+A, Frankfort
+B, Atlanta
+C, Boston
+D, Cheyenne
+
+28.Выберите столицу штата Indiana:
+A, Oklahoma City
+B, Jefferson City
+C, Hartford
+D, Indianapolis
+
+29.Выберите столицу штата West Virginia:
+A, Carson City
+B, Atlanta
+C, Charleston
+D, Honolulu
+
+30.Выберите столицу штата Idaho:
+A, Boise
+B, Honolulu
+C, Montgomery
+D, Baton Rouge
+
+31.Выберите столицу штата South Carolina:
+A, Columbia
+B, Santa Fe
+C, Springfield
+D, Albany
+
+32.Выберите столицу штата Delaware:
+A, Charleston
+B, Nashville
+C, Dover
+D, Juneau
+
+33.Выберите столицу штата Georgia:
+A, Sacramento
+B, Atlanta
+C, Tallahassee
+D, Indianapolis
+
+34.Выберите столицу штата Pennsylvania:
+A, Montpelier
+B, Madison
+C, Harrisburg
+D, Topeka
+
+35.Выберите столицу штата Ohio:
+A, Boston
+B, Columbus
+C, Charleston
+D, Austin
+
+36.Выберите столицу штата Maryland:
+A, Raleigh
+B, Salt Lake City
+C, Hartford
+D, Annapolis
+
+37.Выберите столицу штата Alabama:
+A, Montgomery
+B, Olympia
+C, Denver
+D, Carson City
+
+38.Выберите столицу штата Florida:
+A, Dover
+B, Boston
+C, Tallahassee
+D, Boise
+
+39.Выберите столицу штата Arizona:
+A, Saint Paul
+B, Bismarck
+C, Phoenix
+D, Carson City
+
+40.Выберите столицу штата New York:
+A, Richmond
+B, Nashville
+C, Albany
+D, Boise
+
+41.Выберите столицу штата Maine:
+A, Jackson
+B, Santa Fe
+C, Augusta
+D, Jefferson City
+
+42.Выберите столицу штата New Hampshire:
+A, Springfield
+B, Cheyenne
+C, Baton Rouge
+D, Concord
+
+43.Выберите столицу штата Texas:
+A, Austin
+B, Frankfort
+C, Santa Fe
+D, Little Rock
+
+44.Выберите столицу штата Nevada:
+A, Richmond
+B, Topeka
+C, Carson City
+D, Harrisburg
+
+45.Выберите столицу штата Rhode Island:
+A, Providence
+B, Montpelier
+C, Olympia
+D, Bismarck
+
+46.Выберите столицу штата Tennessee:
+A, Charleston
+B, Nashville
+C, Topeka
+D, Santa Fe
+
+47.Выберите столицу штата Kentucky:
+A, Phoenix
+B, Columbia
+C, Frankfort
+D, Carson City
+
+48.Выберите столицу штата Kansas:
+A, Salt Lake City
+B, Trenton
+C, Topeka
+D, Concord
+
+49.Выберите столицу штата Montana:
+A, Sacramento
+B, Frankfort
+C, Helena
+D, Honolulu
+
+50.Выберите столицу штата Louisiana:
+A, Boston
+B, Helena
+C, Baton Rouge
+D, Montpelier
+
