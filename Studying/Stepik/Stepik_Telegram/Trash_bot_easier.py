@@ -4,8 +4,8 @@ import aiosqlite
 from datetime import datetime
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import CommandStart
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton
-from aiogram.utils.keyboard import ReplyKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.utils.keyboard import ReplyKeyboardMarkup, InlineKeyboardBuilder,ReplyKeyboardBuilder
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from environs import Env
@@ -19,6 +19,28 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 scheduler = AsyncIOScheduler()
 
+
+streets_list = [
+        "Пер. Коммунальный",
+        "Пер. Нефтяников",
+        "Пер. Степной",
+        "Ул. Войкова",
+        "Ул. Гай",
+        "Ул. Дачная",
+        "Ул. Жукова",
+        "Ул. Коминтерна",
+        "Ул. Красноармейская",
+        "Ул. Лабинская",
+        "Ул. Марата",
+        "Ул. Международная",
+        "Ул. Мира",
+        "Ул. Революционная",
+        "Ул. Старателей",
+        "Ул. Степная",
+        "Ул. Телеграфная",
+        "Ул. Чапаева"
+    ]
+
 # --- Работа с БД ---
 async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
@@ -26,11 +48,15 @@ async def init_db():
             CREATE TABLE IF NOT EXISTS trash_reports (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
+                street TEXT NOT NULL,
+                house_number INTEGER NOT NULL,
                 answer TEXT NOT NULL,
                 report_date TEXT NOT NULL
             )
         """)
         await db.commit()
+
+
 
 def get_today_str() -> str:
     """Возвращает сегодняшнюю дату в формате YYYY-MM-DD"""
@@ -102,11 +128,18 @@ async def update_record_by_id(record_id: int, new_answer: str) -> bool:
     return True
 
 # --- Клавиатуры ---
+
+
 def get_start_kb():
     btn= KeyboardButton(text="Сообщить о сборе мусора",callback_data='answer_button')
     return ReplyKeyboardMarkup(keyboard=[[btn]],resize_keyboard=True)
 
 def get_yes_no_kb():
+    btn_yes = KeyboardButton(text="Да")
+    btn_no = KeyboardButton(text="Нет")
+    return ReplyKeyboardMarkup(keyboard=[[btn_yes,btn_no]],resize_keyboard=True)
+
+def get_yes_no_trash_kb():
     btn_yes = KeyboardButton(text="Да, собран")
     btn_no = KeyboardButton(text="Нет, не собран")
     return ReplyKeyboardMarkup(keyboard=[[btn_yes,btn_no]],resize_keyboard=True)
@@ -114,6 +147,15 @@ def get_yes_no_kb():
 def get_edit_kb():
     btn = InlineKeyboardButton(text="Изменить ответ", callback_data="edit_button")
     return InlineKeyboardMarkup(inline_keyboard=[[btn]])
+
+def get_streets_kb():
+
+    builder = ReplyKeyboardBuilder()
+    for street_name in streets_list:
+        builder.add(KeyboardButton(text=street_name))
+    builder.adjust(1)
+    return builder.as_markup()
+
 
 # --- Рассылка ---
 async def send_weekly_poll():
@@ -127,7 +169,7 @@ async def send_weekly_poll():
             await bot.send_message(
                 chat_id=user_id,
                 text="Напоминаем: пожалуйста, сообщите, собран ли мусор сегодня.",
-                reply_markup=get_yes_no_kb()
+                reply_markup=get_yes_no_trash_kb()
             )
         except Exception as e:
             print(f"Не удалось отправить пользователю {user_id}: {e}")
@@ -136,13 +178,34 @@ async def send_weekly_poll():
 @dp.message(CommandStart())
 async def cmd_start(msg):
     await msg.answer(
-        "Привет! Я бот для отчёта о сборе мусора.\nНажмите кнопку ниже, чтобы сообщить статус.",
-        reply_markup=get_start_kb()
+        "Привет! Я бот для отчёта о сборе мусора.\nВыберите вашу улицу.",
+        reply_markup=get_streets_kb()
     )
+
+@dp.message(F.text.in_(streets_list))
+async def cmd_start(msg):
+    await msg.answer(
+        f"Ваша улица: {msg.text}.\nВерно?",
+        reply_markup=get_yes_no_kb()
+    )
+
+@dp.message(F.text.in_(['Нет','Да']))
+async def cmd_start(msg):
+    if msg.text == 'Нет':
+        await msg.answer(
+            f"Выберите вашу улицу:",
+            reply_markup=get_streets_kb()
+        )
+    else:
+        await msg.answer(
+            f"Ваша улица: {msg.text}.",
+            reply_markup=ReplyKeyboardRemove()
+        )
+
 
 @dp.message(F.text == "Сообщить о сборе мусора")
 async def ask_status(msg):
-    await msg.answer("Мусор собран?", reply_markup=get_yes_no_kb())
+    await msg.answer("Мусор собран?", reply_markup=get_yes_no_trash_kb())
 
 @dp.callback_query(F.data == "edit_button")
 async def cb_edit(callback):
@@ -162,7 +225,7 @@ async def cb_edit(callback):
     # Показываем кнопки для выбора нового статуса
     await callback.message.answer(
         f"Текущая запись от {format_day_month(record['report_date'])}: «{record['answer']}».\nВыберите новый статус:",
-        reply_markup=get_yes_no_kb()
+        reply_markup=get_yes_no_trash_kb()
     )
 
 @dp.message(F.text.in_({"Да, собран", "Нет, не собран"}))
