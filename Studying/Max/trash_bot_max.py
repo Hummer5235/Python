@@ -7,7 +7,7 @@ import re
 
 
 from maxapi.filters.middleware import HandlerCallable, BaseMiddleware
-from maxapi.types import  UpdateUnion, Message, BotStarted
+from maxapi.types import UpdateUnion, Message, BotStarted, BotCommand
 from maxapi import Bot, Dispatcher, Router, F
 from maxapi.context import StatesGroup, State, MemoryContext
 from maxapi.filters import StateFilter
@@ -17,6 +17,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from typing_extensions import Any
 
+from Count_month_payments import count_payments
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -30,17 +31,7 @@ class GlobalMessageLoggerMiddleware(BaseMiddleware):
             data: dict[str, Any],
     ) -> Any:
 
-        # Args:
-        # handler: Хендлер события.
-        # event_object: Событие.
-        # data: Дополнительные данные.
-        # Получаем текущее состояние из контекста (data)
-        # В aiogram 3 состояние хранится в data['state']
 
-        # if user_username:
-        #     link = f"https://max.ru/@{user_username}"
-        # else:
-        #     link = None  # ссылки нет
 
         if isinstance(event, MessageCreated):
             # Формируем лог
@@ -136,6 +127,16 @@ class Registration(StatesGroup):
     fill_house_number = State()
     confirm_house_number = State()
 
+class Commands(StatesGroup):
+    count_payments = State()
+    get_statistic = State()
+    create_a_newsletter = State()
+    create_a_newsletter_confirm = State()
+    confirm_repeat_mailing = State()
+
+
+
+
 def get_today_str() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
@@ -189,6 +190,8 @@ async def init_db():
                 iso_week INTEGER
             )
         """)
+        await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_week ON trash_reports(user_id, iso_year, iso_week)")
+
         await db.commit()
 
 
@@ -307,10 +310,12 @@ async def get_statistic(message:Message ,filter_type:str):
     iso_year, iso_week = get_iso_week(today)
     date = get_week_range_text(today)
 
-    #Создание сообщения
-    text = ""
-    text += date + ':\n\n'
-
+    symb_dict = {
+        'Полная':"✅❌➖️",
+        'Да':"✅",
+        'Нет':"❌",
+        'Без ответа':"➖️"
+    }
 
     async with aiosqlite.connect(DB_PATH) as db:
         # Базовый запрос без фильтрации по статусу
@@ -336,47 +341,40 @@ async def get_statistic(message:Message ,filter_type:str):
         cursor = await db.execute(query, params)
         rows = await cursor.fetchall()
 
+        if filter_type == 'Без ответа' or filter_type == 'Полная':
+            kb = get_commands_kb()
+        else:
+            kb = get_statistic_kb()
+
         if not rows:
-            await message.answer(f"За неделю {date} таких отчётов нет.")
-            #Небольшая пауза
-            await asyncio.sleep(0.5)
-            # Показываем кнопки
-            await message.answer(
-                f"Выберите тип статистики за неделю\n{date}:",
-                attachments=[get_statistic_kb()]
+            await message.edit(
+                f"Выборка: {symb_dict[filter_type]}{filter_type}\n\n"
+                f"За неделю {date} таких отчётов нет.",
+                attachments=[kb]
             )
             return
 
+        text = (f'Выборка: {symb_dict[filter_type]}{filter_type}\n\n'
+                f'{date}:\n\n')
 
 
 
+        #Перебираем ответы пользователей
         for row in rows:
             user_id, user_name, street, house_number, answer, report_date = row
 
-            if answer == "Да":
-                symb = "✅"
-            elif answer == "Нет":
-                symb = "❌"
+            #Каждому ответу свой символ
+            if answer in ('Да','Нет'):
+                user_symb = symb_dict[answer]
             else:
-                symb = "➖️"
-
-
-
+                user_symb = '➖️'
             text += (
                 f"Пользователь: {user_name}\n"
                 f"Адрес: {street} {house_number}\n"
-                f"Ответ: {symb}{answer}\n\n"
+                f"Ответ: {user_symb}{answer}\n\n"
             )
-        # f"Дата: {report_date}\n"
 
-        await message.answer(text=text)
-        # Небольшая пауза
-        await asyncio.sleep(0.5)
-        # Показываем кнопки
-        await message.answer(
-            f"Выберите тип статистики за неделю\n{date}:",
-            attachments=[get_statistic_kb()]
-        )
+        await message.edit(text,attachments=[kb])
 
 
 # Остальные функции БД (save_or_update_report, get_last_report и т.д.) можно оставить как есть
@@ -407,65 +405,78 @@ def get_streets_kb():
     return builder.as_markup()
 
 
+#🗑️
 def get_report_kb():
     builder = InlineKeyboardBuilder()
-    btn_report = CallbackButton(text='Сообщить о сборе мусора', payload='Сообщить о сборе мусора')
+    btn_report = CallbackButton(text='🚮Сообщить о сборе мусора', payload='Сообщить о сборе мусора')
+    btn_stat = CallbackButton(text='📊Получить статистику', payload='Получить статистику')
     builder.row(btn_report)
+    builder.row(btn_stat)
     return builder.as_markup()
 
 
 def get_yes_no_kb():
     builder = InlineKeyboardBuilder()
-    btn_yes = CallbackButton(text='Да', payload='да')
-    btn_no = CallbackButton(text='Нет', payload='нет')
+    btn_yes = CallbackButton(text='✅️Да', payload='Да')
+    btn_no = CallbackButton(text='❌️Нет', payload='Нет')
     builder.row(btn_yes, btn_no)
     return builder.as_markup()
 
 
 def get_yes_no_trash_kb():
     builder = InlineKeyboardBuilder()
-    btn_yes = CallbackButton(text="Да, собран", payload='Да, собран')
-    btn_no = CallbackButton(text="Нет, не собран", payload='Нет, не собран')
+    btn_yes = CallbackButton(text="✅️Да, собран", payload='Да, собран')
+    btn_no = CallbackButton(text="❌️Нет, не собран", payload='Нет, не собран')
     builder.row(btn_yes, btn_no)
     return builder.as_markup()
 
 
 def get_edit_kb():
     builder = InlineKeyboardBuilder()
-    btn = CallbackButton(text="Изменить ответ", payload="Изменить ответ")
+    btn = CallbackButton(text="✏️Изменить ответ", payload="Изменить ответ")
     builder.row(btn)
     return builder.as_markup()
 
 
 def get_restart_kb():
     builder = InlineKeyboardBuilder()
-    btn = CallbackButton(text="Начать сначала", payload="Начать сначала")
+    btn = CallbackButton(text="🔁Начать сначала", payload="Начать сначала")
     builder.row(btn)
     return builder.as_markup()
 
-def get_statistic_kb():
+def get_statistic_types_kb():
     builder = InlineKeyboardBuilder()
-    btn_all = CallbackButton(text="Полная", payload="Полная")
-    btn_yes = CallbackButton(text="Да", payload="Да")
-    btn_no = CallbackButton(text="Нет", payload="Нет")
-    btn_none = CallbackButton(text="Без ответа", payload="Без ответа")
+    btn_all = CallbackButton(text="✅️❌️➖️ Полная", payload="Полная")
+    btn_yes = CallbackButton(text="✅ Да", payload="Да")
+    btn_no = CallbackButton(text="❌️ Нет", payload="Нет")
+    btn_none = CallbackButton(text="➖️ Без ответа", payload="Без ответа")
     builder.row(btn_all)
     builder.row(btn_yes)
     builder.row(btn_no)
     builder.row(btn_none)
     return builder.as_markup()
 
+def get_statistic_kb():
+    builder = InlineKeyboardBuilder()
+    btn_stat = CallbackButton(text='📊Получить статистику', payload='Получить статистику')
+    builder.row(btn_stat)
+    return builder.as_markup()
+
 def get_commands_kb():
     builder = InlineKeyboardBuilder()
-    btn_repeat = CallbackButton(text='Повторить рассылку',payload='Повторить рассылку')
+    btn_stat = CallbackButton(text='📊Получить статистику',payload='Получить статистику')
+    btn_repeat = CallbackButton(text='✉️Повторить рассылку',payload='Повторить рассылку')
     builder.row(btn_repeat)
+    builder.row(btn_stat)
     return builder.as_markup()
 
 
 # --- Рассылка ---
 async def send_daily_reminder_to_admins():
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT DISTINCT user_id FROM trash_reports WHERE answer IS NULL OR answer ='' ") as cursor:
+        async with db.execute("SELECT DISTINCT user_id "
+                              "FROM trash_reports "
+                              "WHERE answer IS NULL OR answer ='' ") as cursor:
             rows = await cursor.fetchall()
 
     if not rows:
@@ -487,41 +498,135 @@ async def send_daily_reminder_to_admins():
 
 async def send_weekly_reminder_to_users(event=None):
 
+
+    #Получаем текущую неделю
+    today = get_today_str()
+    iso_year, iso_week = get_iso_week(today)
+
+    #Проверяем всех, кто не ответил на этой неделе
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT DISTINCT user_id,user_name,street,house_number FROM trash_reports WHERE answer IS NULL OR answer ='' ") as cursor:
+        async with db.execute("""
+        SELECT DISTINCT user_id,user_name,street,house_number 
+        FROM trash_reports 
+        WHERE (answer IS NULL OR answer ='') AND iso_year= ? AND iso_week = ?""",[iso_year, iso_week]) as cursor:
+
             rows = await cursor.fetchall()
+            if not rows:
+                # Если это ручная рассылка при помощи команды
+                if event:
+                    await event.message.edit("Нет пользователей, не ответивших на этой неделе",
+                        attachments=[get_statistic_kb()]
+                    )
+                    return
 
-    if not rows:
-        await bot.send_message(
-            user_id=event.from_user.user_id,
-            text="Нет пользователей, не ответивших на этой неделе"
-        )
-        return
+            # Определяем, кому слать отчёт о рассылке
+            report_receiver_id = event.from_user.user_id if event else ADMINS_IDS[0]
 
-    for (user_id,user_name,street,house_number) in rows:
-        # if user_id in ADMINS_IDS:
-        #     continue  # пропускаем админов — им уже шлём ежедневно
+            for (user_id, user_name, street, house_number) in rows:
+                # if user_id in ADMINS_IDS:
+                #     continue  # пропускаем админов — им уже шлём ежедневно
 
-        try:
-            await bot.send_message(
-                user_id=user_id,
-                text="Напоминаем: пожалуйста, сообщите, забрали ли мусор у вашего дома?",
-                attachments=[get_yes_no_trash_kb()]
+                try:
+                    await bot.send_message(
+                        user_id=user_id,
+                        text="Напоминаем: пожалуйста, сообщите, забрали ли мусор у вашего дома?",
+                        attachments=[get_yes_no_trash_kb()]
+                    )
+
+                    # Оповещение администратору в случае частного запроса
+                    await bot.send_message(user_id=report_receiver_id,
+                                           text=f'Напомнили пользователю:\n'
+                                                f'Имя: {user_name}\n'
+                                                f'Адрес: {street} {house_number}'
+                                           )
+
+
+
+                except Exception as e:
+                    print(f"Не удалось отправить пользователю {user_id}: {e}")
+
+
+
+#Рассылка новостного сообщения пользователям
+async def mailing_newsletter(event, message_for_news_letter):
+
+    message = event.message
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+        SELECT DISTINCT user_id,user_name,street,house_number
+        FROM trash_reports """) as cursor:
+
+            rows = await cursor.fetchall()
+            if not rows:
+                await message.answer(
+                    text='Нет пользователей для рассылки'
+                )
+            else:
+
+
+
+                for row in rows:
+                    user_id, user_name,street, house_number = row
+
+                    try:
+
+                        await bot.send_message(
+                            user_id=user_id,
+                            text= message_for_news_letter
+                        )
+
+                        await message.answer(
+                                               text=f'✅Оповестили пользователя:\n\n'
+                                                    f'Имя: {user_name}\n'
+                                                    f'Адрес: {street} {house_number}'
+                                               )
+                    except:
+                        await message.answer(
+                            text=f'❌Отправка пользователю:\n\n'
+                                 f'Имя: {user_name}\n'
+                                 f'Адрес: {street} {house_number}\n'
+                                 f'id: {user_id}\n\n'
+                                 f'Не удалась'
+                        )
+
+#Программы выполняется утром в понедельник
+async def users_to_new_week():
+
+    today = datetime.now()
+    iso_year_curr, iso_week_curr, _ = today.isocalendar()
+
+
+    today = datetime.now()
+    # Корректно считаем прошлую ISO-неделю
+    if iso_week_curr == 1:
+        ref = today - timedelta(days=7)
+        iso_year_prev, iso_week_prev, _ = ref.isocalendar()
+    else:
+        iso_year_prev = iso_year_curr
+        iso_week_prev = iso_week_curr - 1
+
+    report_date_str = get_today_str()
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT OR IGNORE INTO trash_reports (
+                user_id, user_name, street, house_number,
+                iso_year, iso_week, report_date, answer
             )
-
-            #Оповещение администратору в случае частного запроса
-            if event:
-                await bot.send_message(user_id=event.from_user.user_id,
-                text=f'Напомнили пользователю:\n'
-                     f'Имя: {user_name}\n'
-                     f'Адрес: {street} {house_number}'
-                                       )
-
-
-        except Exception as e:
-            print(f"Не удалось отправить пользователю {user_id}: {e}")
+            SELECT user_id, user_name, street, house_number, ?, ?, ?, NULL
+            FROM trash_reports
+            WHERE iso_year = ? AND iso_week = ?
+            """,
+            (iso_year_curr, iso_week_curr, report_date_str, iso_year_prev, iso_week_prev)
+        )
+        await db.commit()
 
 # --- Хендлеры ---
+
+
+
 
 
 
@@ -532,35 +637,96 @@ async def start_handler(event:BotStarted):
         text='Привет! 👋\nЯ простой бот.\nНапиши мне любое сообщение'
     )
 
-@router.message_created(Command('stat'))
-async def cmd_stat(event: MessageCreated):
-    message = event.message
 
-    #Получение текущей даты для формирования сообщения
+async def send_stat_menu(event):
+
+    # Получение текущей даты для формирования сообщения
     today = get_today_str()
     date = get_week_range_text(today)
+
+    message = event.message
 
     # Проверка прав админа
     if event.from_user.user_id not in ADMINS_IDS and event.from_user.user_id not in SUB_ADMINS_IDS:
         await message.answer("❌ Доступ запрещён: вы не администратор.")
         return
 
+    if isinstance(event,MessageCreated): #Если это сообщение и нужно именно ответить
+        await message.answer(
+            f"Выберите тип статистики за неделю\n{date}:",
+            attachments=[get_statistic_types_kb()]
+        )
+        return
+
     # Показываем кнопки
-    await message.answer(
+    await message.edit(
         f"Выберите тип статистики за неделю\n{date}:",
-        attachments=[get_statistic_kb()]
+        attachments=[get_statistic_types_kb()]
     )
+
+@router.message_created(Command('stat'))
+async def cmd_stat(event,context : MemoryContext):
+        await context.set_state(Commands.get_statistic)
+        await send_stat_menu(event)
+
+@router.message_callback(F.callback.payload=='Получить статистику')
+async def cb_stat(event,context : MemoryContext):
+        await context.set_state(Commands.get_statistic)
+        await send_stat_menu(event)
+
+@router.message_created(Command('payments'))
+async def cmd_payments(event,context :MemoryContext):
+    message = event.message
+
+    #Проверка
+    #прав
+    #админа
+
+    if event.from_user.user_id not in ADMINS_IDS :
+        await message.answer("❌ Доступ запрещён: вы не администратор.")
+        return
+
+    await message.answer(
+        text='Отправьте список оплат в формате:\n'
+             '(Стоимость) день,день...\n'
+             '(Стоимость) день,день...\n\n'
+             'Пример:\n'
+             '(1000) 1,8,15,22,29\n'
+             '(1200) 1,8,15,22,29'
+    )
+
+    await context.set_state(Commands.count_payments)
+
+
+@router.message_created(Command('newsletter'))
+async def cmd_newsletter(event:MessageCreated,context : MemoryContext):
+    message = event.message
+
+    # Проверка прав админа
+    if event.from_user.user_id not in ADMINS_IDS:
+        await message.answer("❌ Доступ запрещён: вы не администратор.")
+        return
+
+    await message.answer(
+        'Напишите сообщение для пользователей:'
+    )
+
+    await context.set_state(Commands.create_a_newsletter)
 
 @router.message_created(Command('commands'))
 async def cmd_commands(event: MessageCreated):
     message = event.message
 
-    # Проверка прав админа
+    # Проверка прав админа и суб_админа
     if event.from_user.user_id not in ADMINS_IDS and event.from_user.user_id not in SUB_ADMINS_IDS:
         await message.answer("❌ Доступ запрещён: вы не администратор.")
         return
 
-    await message.answer('Выберите доступные команды',attachments=[get_commands_kb()])
+    await message.answer('Выберите доступные команды:',attachments=[get_commands_kb()])
+
+
+
+
 
 @router.message_callback(F.callback.payload.in_(streets_list), Registration.fill_street)
 async def fill_street_process(event: MessageCallback, context: MemoryContext):
@@ -568,14 +734,14 @@ async def fill_street_process(event: MessageCallback, context: MemoryContext):
     street = event.callback.payload
 
     await context.update_data(street=street)
-    await message.answer(
+    await message.edit(
         f"Ваша улица: {street}.\nВерно?",
         attachments=[get_yes_no_kb()]
     )
     await context.set_state(Registration.street_confirming)
 
 
-@router.message_callback(F.callback.payload.in_(['да', 'нет']), Registration.street_confirming)
+@router.message_callback(F.callback.payload.in_(['Да', 'Нет']), Registration.street_confirming)
 async def handle_street_confirm(event: MessageCallback, context: MemoryContext):
     message = event.message
     data = await context.get_data()
@@ -587,14 +753,14 @@ async def handle_street_confirm(event: MessageCallback, context: MemoryContext):
         await message.answer("Сначала выберите улицу:", attachments=[kb])
         return
 
-    if event.callback.payload == 'да':
-        await message.answer(f"Ваша улица: {street}\nНапишите номер дома:")
+    if event.callback.payload == 'Да':
+        await message.edit(f"Ваша улица: {street}\nНапишите номер дома:",attachments=[])
         await context.set_state(Registration.fill_house_number)
     else:
         kb = get_streets_kb()
         await context.set_state(Registration.fill_street)
         await context.update_data(street=None)
-        await message.answer("Выберите улицу:", attachments=[kb])
+        await message.edit("Выберите улицу:", attachments=[kb])
 
 
 @router.message_created(Registration.fill_house_number)
@@ -613,7 +779,7 @@ async def fill_house_number(event: MessageCreated, context: MemoryContext):
     await message.answer(f"Номер дома: {text}\nПодтвердите, пожалуйста:", attachments=[get_yes_no_kb()])
 
 
-@router.message_callback(F.callback.payload.in_(['да', 'нет']), Registration.confirm_house_number)
+@router.message_callback(F.callback.payload.in_(['Да','Нет']), Registration.confirm_house_number)
 async def confirm_house_number(event: MessageCallback, context: MemoryContext):
     message = event.message
     data = await context.get_data()
@@ -625,7 +791,7 @@ async def confirm_house_number(event: MessageCallback, context: MemoryContext):
         await context.clear()
         return
 
-    if event.callback.payload == 'да':
+    if event.callback.payload == 'Да':
         # Здесь можно сразу делать проверку на дубликат в БД и сохранять
         user_id = event.from_user.user_id
         name = data.get('name', 'Неизвестно')
@@ -634,44 +800,34 @@ async def confirm_house_number(event: MessageCallback, context: MemoryContext):
         # Вызови свою функцию регистрации/проверки, например:
         if await register_user(user_id, name, street, house_number):
 
-            await message.answer(
+            await message.edit(
                 text=f"Благодарю! Ваша анкета:\n\n"
                      f"Имя: {name}\n"
-                     f"Адрес: {street} {house_number}"
+                     f"Адрес: {street} {house_number}\n\n"
+                     f"Бот будет опрашивать вас раз в неделю.\nТакже вы сможете сообщать о сборе мусоре самостоятельно на кнопку.",
+                attachments=[get_report_kb()]
             )
 
-            await message.answer(
-                "Адрес успешно сохранён! Теперь вы можете сообщать о сборе мусоре.",
-                attachments=[get_report_kb()])
             await context.clear()
             # показать главное меню
         else:
-            await message.answer("Такой адрес уже есть в базе. Начните заново и выберите другой адрес.")
             # можно вернуть к выбору улицы
             await context.set_state(Registration.fill_street)
             kb = get_streets_kb()
-            await message.answer("Выберите другую улицу:", attachments=[kb])
+            await message.edit("Такой адрес уже есть в базе. Начните заново и выберите другой адрес:", attachments=[kb])
     else:
         await context.set_state(Registration.fill_house_number)
-        await message.answer("Пожалуйста, введите номер дома заново:")
-
-
-@router.message_created(Registration.fill_house_number)
-async def fill_house_letter(event: MessageCreated, context: MemoryContext):
-    message = event.message
-    text = message.body.text.strip()
-
-    if not text.isdigit() or int(text) not in range(1, 501):
-        await message.answer("Введите корректный номер дома:", attachments=[get_restart_kb()])
-        return
-
-    await context.update_data(house_number=text)
-    await context.set_state(Registration.confirm_house_number)  # переходим к подтверждению
-    await message.answer(f"Номер дома: {text}\nПодтвердите, пожалуйста:", attachments=[get_yes_no_kb()])
+        await message.edit("Пожалуйста, введите номер дома заново:",attachments=[])
 
 
 
-@router.message_callback(F.callback.payload == 'Начать сначала',Registration)
+@router.message_callback(
+    F.callback.payload == 'Начать сначала',
+    Registration.fill_street,
+    Registration.street_confirming,
+    Registration.fill_house_number,
+    Registration.confirm_house_number
+)
 async def restart_registration(event: MessageCreated, context: MemoryContext):
     message = event.message
     await event.message.delete() #Удалить сообщение
@@ -685,7 +841,7 @@ async def restart_registration(event: MessageCreated, context: MemoryContext):
 @router.message_callback(F.callback.payload == 'Сообщить о сборе мусора')
 async def ask_status(event: MessageCallback):
     message = event.message
-    await message.answer("Мусор собран?", attachments=[get_yes_no_trash_kb()])
+    await message.edit("Мусор собран?", attachments=[get_yes_no_trash_kb()])
 
 
 @router.message_callback(F.callback.payload.in_(["Да, собран", "Нет, не собран"]))
@@ -713,7 +869,7 @@ async def handle_yes_no(event: MessageCallback):
 
 
     if result == "updated":
-        await message.answer(
+        await message.edit(
             f"Статус за неделю\n{week_range} обновлён: \n\n«{symb}{new_answer}».",
             attachments=[get_edit_kb()]
         )
@@ -729,12 +885,12 @@ async def cb_edit(event: MessageCallback):
     record = await get_last_report(user_id)
 
     if not record:
-        await message.answer("Нет записей для редактирования.")
+        await message.edit("Нет записей для редактирования.")
         return
 
     if not await can_edit_record(record["report_date"]):
         week_range = get_week_range_text(record["report_date"])
-        await message.answer(
+        await message.edit(
             f"❌ Нельзя изменить запись за неделю\n{week_range}:\nона старше текущей календарной недели."
         )
         return
@@ -747,14 +903,122 @@ async def cb_edit(event: MessageCallback):
         symb = '❌️'
 
 
-    await message.answer(
+    await message.edit(
         f"Текущая запись за неделю\n{week_range}:\n\n«{symb}{record['answer']}».\n\nВыберите новый статус:",
         attachments=[get_yes_no_trash_kb()]
     )
 
+@router.message_created(Commands.count_payments)
+async def count_payments(event: MessageCreated, context: MemoryContext):
+    message = event.message
+    text = message.body.text
+    result = count_payments(text)
+
+    await message.answer(f'Результат: {result} Руб.')
+
+    #Очистить состояние
+    await context.clear()
+
+@router.message_created(Commands.create_a_newsletter)
+async def handle_message_newsletter(event: MessageCreated, context: MemoryContext):
+    message = event.message
+    text = message.body.text
+
+    await context.update_data(message_for_news_letter=text)
+
+    await message.answer(
+        f'Сообщение пользователям:\n\n"{text}"\n\n'
+        f'Выполнить рассылку данного сообщения?',
+        attachments=[get_yes_no_kb()]
+    )
+    await context.set_state(Commands.create_a_newsletter_confirm)
+
+@router.message_callback(Commands.create_a_newsletter_confirm,F.callback.payload.in_(['Да','Нет']))
+async def handle_confirm_newsletter(event: MessageCallback, context: MemoryContext):
+    message = event.message
+    payload = event.callback.payload
+
+    # Получили из памяти (FSM)
+    data = await context.get_data()
+    message_for_news_letter = data.get('message_for_news_letter')
+
+    if payload == 'Нет':
+        await message.edit(
+            'Рассылка пользователям отменена',
+            attachments=[]
+        )
+    else:
+        await message.edit(
+            'Рассылка выполняется...',
+            attachments=[]
+        )
+        await mailing_newsletter(event,message_for_news_letter)
+
+    await context.clear()
+
+
+
+
+@router.message_callback(F.callback.payload.in_(["Полная", "Да", "Нет","Без ответа"]),Commands.get_statistic)
+async def handle_stat_buttons(event:MessageCallback,context : MemoryContext):
+    message = event.message
+    # Проверка прав админа (обязательно и тут!)
+    if event.from_user.user_id not in ADMINS_IDS and event.from_user.user_id not in SUB_ADMINS_IDS :
+        await message.edit("❌ Доступ запрещён")
+        return
+
+    # Вызываем статистику. Передаём event., потому что get_statistic ждёт MessageCreated
+    await get_statistic(message=message, filter_type=event.callback.payload)
+
+    await context.clear()
+
+@router.message_callback(F.callback.payload == 'Повторить рассылку')
+async def handle_command_repeat_mailing(event:MessageCallback,context:MemoryContext):
+    message = event.message
+
+    # Проверка прав админа (обязательно и тут!)
+    if event.from_user.user_id not in ADMINS_IDS and event.from_user.user_id not in SUB_ADMINS_IDS:
+        await message.edit("❌ Доступ запрещён")
+        return
+
+    await context.set_state(Commands.confirm_repeat_mailing)
+    await message.edit(
+        "Вы уверены, что хотите совершить рассылку всем неответившим пользователям?",
+        attachments=[get_yes_no_kb()]
+    )
+
+@router.message_callback(Commands.confirm_repeat_mailing,F.callback.payload.in_(['Да','Нет']))
+async def handle_confirm_repeat_mailing(event: MessageCallback, context: MemoryContext):
+
+    message = event.message
+
+    if event.callback.payload == 'Нет':
+        await message.edit('Выберите доступные команды:',attachments=[get_commands_kb()])
+    else:
+        await send_weekly_reminder_to_users(event)
+
+
+# Эхо-хендлер — только если пользователь в каком-то состоянии (например, в форме)
+# Если ты хочешь вообще отключить эхо — просто удали этот хендлер
+@router.message_created(Registration.fill_street,
+    Registration.street_confirming,
+    Registration.fill_house_number,
+    Registration.confirm_house_number)
+async def echo_handler(event: MessageCreated, context: MemoryContext):
+    message = event.message
+    current_state = await context.get_state()
+    if current_state is None:
+        # Если пользователь не в FSM, этот хендлер не должен срабатывать,
+        # потому что выше уже есть guard с StateFilter(None).
+        # Но если вдруг сработает — просто игнорируем.
+        return
+
+    text = message.body.text
+    if text:
+        await message.answer(f"Вы написали: '{text}'.\nПродолжайте заполнять форму.", attachments=[get_restart_kb()])
 
 # ГЛАВНЫЙ ХЕНДЛЕР-СТРАЖ — только для сообщений, когда пользователь НЕ в FSM
-@router.message_created(StateFilter(None))
+@router.message_created()
 async def unregistered_guard(event: MessageCreated, context: MemoryContext):
     message = event.message
     user = event.from_user
@@ -789,49 +1053,19 @@ async def unregistered_guard(event: MessageCreated, context: MemoryContext):
     await context.clear()
     return
 
+async def setup_bot_commands():
 
-@router.message_callback(F.callback.payload.in_(["Полная", "Да", "Нет","Без ответа"]))
-async def handle_stat_buttons(event:MessageCallback):
-    message = event.message
-    # Проверка прав админа (обязательно и тут!)
-    if event.callback.user.user_id not in ADMINS_IDS and event.callback.user.user_id not in SUB_ADMINS_IDS :
-        await message.answer("❌ Доступ запрещён")
-        return
-
-    # Вызываем статистику. Передаём event., потому что get_statistic ждёт MessageCreated
-    await get_statistic(message=message, filter_type=event.callback.payload)
-
-@router.message_callback(F.callback.payload == 'Повторить рассылку')
-async def handle_command_repeat_mailing(event:MessageCallback):
-    message = event.message
-    # Проверка прав админа (обязательно и тут!)
-    if event.callback.user.user_id not in ADMINS_IDS and event.callback.user.user_id not in SUB_ADMINS_IDS :
-        await message.answer("❌ Доступ запрещён")
-        return
-
-    await send_weekly_reminder_to_users(event)
-
-
-# Эхо-хендлер — только если пользователь в каком-то состоянии (например, в форме)
-# Если ты хочешь вообще отключить эхо — просто удали этот хендлер
-@router.message_created()
-async def echo_handler(event: MessageCreated, context: MemoryContext):
-    message = event.message
-    current_state = await context.get_state()
-    if current_state is None:
-        # Если пользователь не в FSM, этот хендлер не должен срабатывать,
-        # потому что выше уже есть guard с StateFilter(None).
-        # Но если вдруг сработает — просто игнорируем.
-        return
-
-    text = message.body.text
-    if text:
-        await message.answer(f"Вы написали: '{text}'.\nПродолжайте заполнять форму.", attachments=[get_restart_kb()])
-
+    await bot.set_my_commands(
+        BotCommand(name="stat", description="Получить статистику"),
+        BotCommand(name="commands", description="Показать доступные команды"),
+        BotCommand(name="payments", description="Платежи(админ)"),
+        BotCommand(name="newsletter", description="Новостная рассылка(админ)"),
+                              )
 
 async def main():
     await init_db()
     dp.include_routers(router)
+    await setup_bot_commands()
     # Настройка и запуск планировщика
     scheduler.add_job(
         send_daily_reminder_to_admins,
@@ -847,8 +1081,15 @@ async def main():
         replace_existing=True  # <-- если задача уже есть, заменит её, а не добавит новую
     )  # каждый день в 16:00
 
+    scheduler.add_job(
+        users_to_new_week,
+        CronTrigger(hour=15, minute=0, day_of_week='mon'),  # day_of_week='mon'
+        id='create_users_to_new_week',
+        replace_existing=True  # <-- если задача уже есть, заменит её, а не добавит новую
+    )  
+    await users_to_new_week()
     scheduler.start()
-
+    
     await dp.start_polling(bot)
 
 
