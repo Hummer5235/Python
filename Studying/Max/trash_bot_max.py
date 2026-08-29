@@ -11,13 +11,13 @@ from maxapi.types import UpdateUnion, Message, BotStarted, BotCommand
 from maxapi import Bot, Dispatcher, Router, F
 from maxapi.context import StatesGroup, State, MemoryContext
 from maxapi.filters import StateFilter
-from maxapi.types import MessageCreated, Command, CallbackButton, MessageCallback
-from maxapi.utils.inline_keyboard import InlineKeyboardBuilder
+from maxapi.types import MessageCreated, Command,  MessageCallback
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from typing_extensions import Any
 
 from Count_month_payments import count_payments
+from Project.keyboards.keyboards import *
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -379,96 +379,7 @@ async def get_statistic(message:Message ,filter_type:str):
 
 # Остальные функции БД (save_or_update_report, get_last_report и т.д.) можно оставить как есть
 
-# --- Клавиатуры ---
 
-
-def get_streets_kb():
-    builder = InlineKeyboardBuilder()
-    row_buttons = []
-
-    for street_name in streets_list:
-        btn = CallbackButton(
-            text=street_name,
-            payload=f"{street_name}"
-        )
-        row_buttons.append(btn)
-
-        if len(row_buttons) == 2:  # оставил как у тебя, но логичнее 3
-            builder.row(*row_buttons)
-            row_buttons = []
-
-    if row_buttons:
-        builder.row(*row_buttons)
-
-    builder.row()
-
-    return builder.as_markup()
-
-
-#🗑️
-def get_report_kb():
-    builder = InlineKeyboardBuilder()
-    btn_report = CallbackButton(text='🚮Сообщить о сборе мусора', payload='Сообщить о сборе мусора')
-    btn_stat = CallbackButton(text='📊Получить статистику', payload='Получить статистику')
-    builder.row(btn_report)
-    builder.row(btn_stat)
-    return builder.as_markup()
-
-
-def get_yes_no_kb():
-    builder = InlineKeyboardBuilder()
-    btn_yes = CallbackButton(text='✅️Да', payload='Да')
-    btn_no = CallbackButton(text='❌️Нет', payload='Нет')
-    builder.row(btn_yes, btn_no)
-    return builder.as_markup()
-
-
-def get_yes_no_trash_kb():
-    builder = InlineKeyboardBuilder()
-    btn_yes = CallbackButton(text="✅️Да, собран", payload='Да, собран')
-    btn_no = CallbackButton(text="❌️Нет, не собран", payload='Нет, не собран')
-    builder.row(btn_yes, btn_no)
-    return builder.as_markup()
-
-
-def get_edit_kb():
-    builder = InlineKeyboardBuilder()
-    btn = CallbackButton(text="✏️Изменить ответ", payload="Изменить ответ")
-    builder.row(btn)
-    return builder.as_markup()
-
-
-def get_restart_kb():
-    builder = InlineKeyboardBuilder()
-    btn = CallbackButton(text="🔁Начать сначала", payload="Начать сначала")
-    builder.row(btn)
-    return builder.as_markup()
-
-def get_statistic_types_kb():
-    builder = InlineKeyboardBuilder()
-    btn_all = CallbackButton(text="✅️❌️➖️ Полная", payload="Полная")
-    btn_yes = CallbackButton(text="✅ Да", payload="Да")
-    btn_no = CallbackButton(text="❌️ Нет", payload="Нет")
-    btn_none = CallbackButton(text="➖️ Без ответа", payload="Без ответа")
-    builder.row(btn_all)
-    builder.row(btn_yes)
-    builder.row(btn_no)
-    builder.row(btn_none)
-    return builder.as_markup()
-
-def get_statistic_kb():
-    builder = InlineKeyboardBuilder()
-    btn_stat = CallbackButton(text='📊Получить статистику', payload='Получить статистику')
-    builder.row(btn_stat)
-    return builder.as_markup()
-
-def get_commands_kb():
-    builder = InlineKeyboardBuilder()
-    btn_stat = CallbackButton(text='📊Получить статистику',payload='Получить статистику')
-    btn_repeat = CallbackButton(text='✉️Повторить рассылку',payload='Повторить рассылку')
-    builder.row(btn_repeat)
-    builder.row(btn_stat)
-    return builder.as_markup()
 
 
 # --- Рассылка ---
@@ -749,7 +660,7 @@ async def handle_street_confirm(event: MessageCallback, context: MemoryContext):
 
     if not street:
         # Если улицы нет — значит, пользователь нажал кнопку без выбора, возвращаем к выбору
-        kb = get_streets_kb()
+        kb = get_streets_kb(streets_list)
         await message.answer("Сначала выберите улицу:", attachments=[kb])
         return
 
@@ -757,7 +668,7 @@ async def handle_street_confirm(event: MessageCallback, context: MemoryContext):
         await message.edit(f"Ваша улица: {street}\nНапишите номер дома:",attachments=[])
         await context.set_state(Registration.fill_house_number)
     else:
-        kb = get_streets_kb()
+        kb = get_streets_kb(streets_list)
         await context.set_state(Registration.fill_street)
         await context.update_data(street=None)
         await message.edit("Выберите улицу:", attachments=[kb])
@@ -813,7 +724,7 @@ async def confirm_house_number(event: MessageCallback, context: MemoryContext):
         else:
             # можно вернуть к выбору улицы
             await context.set_state(Registration.fill_street)
-            kb = get_streets_kb()
+            kb = get_streets_kb(streets_list)
             await message.edit("Такой адрес уже есть в базе. Начните заново и выберите другой адрес:", attachments=[kb])
     else:
         await context.set_state(Registration.fill_house_number)
@@ -835,7 +746,7 @@ async def restart_registration(event: MessageCreated, context: MemoryContext):
     await context.set_state(Registration.fill_street)
 
     await context.update_data(name=event.from_user.full_name)
-    await message.answer("Выберите улицу:", attachments=[get_streets_kb()])
+    await message.answer("Выберите улицу:", attachments=[get_streets_kb(streets_list)])
 
 
 @router.message_callback(F.callback.payload == 'Сообщить о сборе мусора')
@@ -1035,9 +946,9 @@ async def unregistered_guard(event: MessageCreated, context: MemoryContext):
     if not exists:
         logger.info(f"[GUARD] Пользователь {user_id} НЕ найден → регистрация")
         await context.update_data(name=user.full_name)
-        kb = get_streets_kb()
+        kb = get_streets_kb(streets_list)
         await message.answer(
-            f"Привет, {user.first_name}!\nПредлагаю познакомиться!\nВыберите улицу:",
+            f"Привет, {user.first_name}!\nПредлагаю познакомиться!\n\nВыберите улицу:",
             attachments=[kb]
         )
         await context.set_state(Registration.fill_street)
