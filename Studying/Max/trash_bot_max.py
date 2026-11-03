@@ -60,6 +60,9 @@ class GlobalMessageLoggerMiddleware(BaseMiddleware):
 
         return await handler(event, data)
 
+from dotenv import load_dotenv
+load_dotenv()
+
 
 BOT_TOKEN = os.getenv('BOT_TOKEN_max_1')
 if not BOT_TOKEN:
@@ -111,13 +114,13 @@ streets_list = [
     "Ул. Телеграфная", "Ул. Чапаева"
 ]
 
-kostroma_streets = ["Ул. Индустриальная", "д. Самково", "Ул. Свердлова", 'Ул. Южная', 'Ул. Магистральная',
-                    'Ул. Костромская']
-kirgach_streets = ['кв-л Южный', 'Ул. Самостроевская', 'Ул. Ново-Полянская']
+# kostroma_streets = ["Ул. Индустриальная", "д. Самково", "Ул. Свердлова", 'Ул. Южная', 'Ул. Магистральная',
+#                     'Ул. Костромская']
+# kirgach_streets = ['кв-л Южный', 'Ул. Самостроевская', 'Ул. Ново-Полянская']
 
 # Добавление улиц из других городов
-streets_list += kostroma_streets
-streets_list += kirgach_streets
+# streets_list += kostroma_streets
+# streets_list += kirgach_streets
 streets_list.sort()
 
 
@@ -175,24 +178,36 @@ def get_week_range_text(date_str: str) -> str:
 
 # --- Работа с БД ---
 
-async def init_db():
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS trash_reports (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                user_name TEXT NOT NULL,
-                street TEXT NOT NULL,
-                house_number TEXT NOT NULL,
-                answer TEXT,
-                report_date TEXT NOT NULL,
-                iso_year INTEGER,
-                iso_week INTEGER
-            )
-        """)
-        await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_week ON trash_reports(user_id, iso_year, iso_week)")
 
-        await db.commit()
+async def init_db():
+    try:
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS trash_reports (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    user_name TEXT NOT NULL,
+                    street TEXT NOT NULL,
+                    house_number TEXT NOT NULL,
+                    answer TEXT,
+                    report_date TEXT NOT NULL,
+                    iso_year INTEGER,
+                    iso_week INTEGER
+                )
+            """)
+            await db.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_week "
+                "ON trash_reports(user_id, iso_year, iso_week)"
+            )
+            await db.commit()
+    except aiosqlite.Error as e:
+        logger.error("Ошибка инициализации БД: %s", e)
+        raise  # пробрасываем дальше — без БД приложение неработоспособно
+    except OSError as e:
+        logger.error("Системная ошибка при доступе к БД: %s", e)
+        raise
+
+
 
 
 async def register_user(user_id: int, name: str, street: str, house_number: str):
@@ -503,7 +518,7 @@ async def mailing_newsletter(event, message_for_news_letter):
 
 #Программы выполняется утром в понедельник
 async def users_to_new_week():
-
+    print('Добавление нового пользователя')
     today = datetime.now()
     iso_year_curr, iso_week_curr, _ = today.isocalendar()
 
@@ -527,10 +542,17 @@ async def users_to_new_week():
                 iso_year, iso_week, report_date, answer
             )
             SELECT user_id, user_name, street, house_number, ?, ?, ?, NULL
-            FROM trash_reports
-            WHERE iso_year = ? AND iso_week = ?
+            FROM (
+                SELECT user_id, user_name, street, house_number,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY user_id
+                           ORDER BY report_date DESC
+                       ) AS rn
+                FROM trash_reports
+            )
+            WHERE rn = 1
             """,
-            (iso_year_curr, iso_week_curr, report_date_str, iso_year_prev, iso_week_prev)
+            (iso_year_curr, iso_week_curr, report_date_str)
         )
         await db.commit()
 
@@ -710,13 +732,17 @@ async def confirm_house_number(event: MessageCallback, context: MemoryContext):
 
         # Вызови свою функцию регистрации/проверки, например:
         if await register_user(user_id, name, street, house_number):
+            kb = get_report_kb()
+            if user_id in ADMINS_IDS or user_id in SUB_ADMINS_IDS:
+                kb = get_report_admins_kb()
+
 
             await message.edit(
                 text=f"Благодарю! Ваша анкета:\n\n"
                      f"Имя: {name}\n"
                      f"Адрес: {street} {house_number}\n\n"
                      f"Бот будет опрашивать вас раз в неделю.\nТакже вы сможете сообщать о сборе мусоре самостоятельно на кнопку.",
-                attachments=[get_report_kb()]
+                attachments=[kb]
             )
 
             await context.clear()
@@ -820,7 +846,7 @@ async def cb_edit(event: MessageCallback):
     )
 
 @router.message_created(Commands.count_payments)
-async def count_payments(event: MessageCreated, context: MemoryContext):
+async def handle_count_payments(event: MessageCreated, context: MemoryContext):
     message = event.message
     text = message.body.text
     result = count_payments(text)
@@ -935,13 +961,27 @@ async def unregistered_guard(event: MessageCreated, context: MemoryContext):
     user = event.from_user
     user_id = event.from_user.user_id
 
-    # Проверяем, есть ли пользователь в БД
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute(
-            "SELECT 1 FROM trash_reports WHERE user_id = ?",
-            (user_id,)
-        )
-        exists = await cursor.fetchone()
+    try:
+        # Проверяем, есть ли пользователь в БД
+        async with aiosqlite.connect(DB_PATH) as db:
+            cursor = await db.execute(
+                "SELECT 1 FROM trash_reports WHERE user_id = ?",
+                (user_id,)
+            )
+            exists = await cursor.fetchone()
+    except aiosqlite.Error as e:
+        logger.error("[GUARD] Ошибка БД при проверке пользователя %d: %s", user_id, e)
+        # Не показываем ошибку пользователю, просто сообщаем, что сервис временно недоступен
+        await message.answer("Сервис временно недоступен. Попробуйте позже.")
+        await bot.send_message(user_id = ADMINS_IDS[0],
+                               text=f'[GUARD] Ошибка БД при проверке пользователя {user_id}: {e}')
+        return
+    except OSError as e:
+        logger.error("[GUARD] Системная ошибка при доступе к БД для пользователя %d: %s", user_id, e)
+        await message.answer("Сервис временно недоступен. Попробуйте позже.")
+        await bot.send_message(user_id=ADMINS_IDS[0],
+                               text=f'[GUARD] Системная ошибка при доступе к БД для пользователя {user_id}: {e}')
+        return
 
     if not exists:
         logger.info(f"[GUARD] Пользователь {user_id} НЕ найден → регистрация")
@@ -956,9 +996,12 @@ async def unregistered_guard(event: MessageCreated, context: MemoryContext):
 
     # Пользователь зарегистрирован
     logger.info(f"[GUARD] Пользователь {user_id} найден → показываем меню")
+    kb = get_report_kb()
+    if user_id in ADMINS_IDS or user_id in SUB_ADMINS_IDS:
+        kb = get_report_admins_kb()
     await message.answer(
         f"Вы написали: '{message.body.text}'.\nЧтобы сообщить о сборе мусора, нажмите кнопку:",
-        attachments=[get_report_kb()]
+        attachments=[kb]
     )
     # Сбрасываем состояние, если оно осталось «зависшим»
     await context.clear()
@@ -976,11 +1019,11 @@ async def setup_bot_commands():
 async def main():
     await init_db()
     dp.include_routers(router)
-    await setup_bot_commands()
+    # await setup_bot_commands()
     # Настройка и запуск планировщика
     scheduler.add_job(
         send_daily_reminder_to_admins,
-        CronTrigger(hour=9, minute=0),  # Каждый день
+        CronTrigger(hour=10, minute=0),  # Каждый день
         id='weekly_poll_admins',
         replace_existing=True  # <-- если задача уже есть, заменит её, а не добавит новую
     )  # каждый день в 9:00
@@ -994,7 +1037,7 @@ async def main():
 
     scheduler.add_job(
         users_to_new_week,
-        CronTrigger(hour=15, minute=0, day_of_week='mon'),  # day_of_week='mon'
+        CronTrigger(hour=9, minute=0, day_of_week='mon'),  # day_of_week='mon'
         id='create_users_to_new_week',
         replace_existing=True  # <-- если задача уже есть, заменит её, а не добавит новую
     )  

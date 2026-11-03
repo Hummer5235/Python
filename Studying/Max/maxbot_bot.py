@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 bot = Bot('f9LHodD0cOLIMSeObumpLGeRdVcXKpqBdIUzZka9VEMjb0Ly20JFepfmJXrBsuUprbbn99WR5zLm7pfQfMcH')
-DB_PATH = "trash_report.db"
+DB_PATH = "trash_report_test.db"
 dp = Dispatcher(bot)
 
 # --- Константы и утилиты ---

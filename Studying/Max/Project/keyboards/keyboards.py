@@ -31,11 +31,16 @@ def get_streets_kb(streets_list):
 def get_report_kb():
     builder = InlineKeyboardBuilder()
     btn_report = CallbackButton(text='🚮Сообщить о сборе мусора', payload='Сообщить о сборе мусора')
+    builder.row(btn_report)
+    return builder.as_markup()
+
+def get_report_admins_kb():
+    builder = InlineKeyboardBuilder()
+    btn_report = CallbackButton(text='🚮Сообщить о сборе мусора', payload='Сообщить о сборе мусора')
     btn_stat = CallbackButton(text='📊Получить статистику', payload='Получить статистику')
     builder.row(btn_report)
     builder.row(btn_stat)
     return builder.as_markup()
-
 
 def get_yes_no_kb():
     builder = InlineKeyboardBuilder()
