@@ -4,6 +4,8 @@ import logging
 from datetime import datetime, timedelta
 import aiosqlite
 import re
+from zoneinfo import ZoneInfo
+
 
 
 from maxapi.filters.middleware import HandlerCallable, BaseMiddleware
@@ -78,7 +80,8 @@ DB_PATH = "trash_report.db"
 dp.register_outer_middleware(GlobalMessageLoggerMiddleware())
 
 # -------------------------------------------
-scheduler = AsyncIOScheduler()
+scheduler = AsyncIOScheduler(timezone="Europe/Moscow")
+TZ = ZoneInfo("Europe/Moscow")
 
 # --- Константы и утилиты ---
 RUSSIAN_LETTERS = set('абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ')
@@ -141,7 +144,7 @@ class Commands(StatesGroup):
 
 
 def get_today_str() -> str:
-    return datetime.now().strftime("%Y-%m-%d")
+    return datetime.now(TZ).strftime("%Y-%m-%d")
 
 
 def get_iso_week(date_str: str) -> tuple[int, int]:
@@ -392,6 +395,20 @@ async def get_statistic(message:Message ,filter_type:str):
         await message.edit(text,attachments=[kb])
 
 
+async def choice_of_ignoring_users():
+    # Получаем текущую неделю
+    today = get_today_str()
+    iso_year, iso_week = get_iso_week(today)
+    # Проверяем всех, кто не ответил на этой неделе
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT DISTINCT user_id,user_name,street,house_number 
+            FROM trash_reports 
+            WHERE (answer IS NULL OR answer ='') AND iso_year= ? AND iso_week = ?""", [iso_year, iso_week]) as cursor:
+
+            rows = await cursor.fetchall()
+    return rows
+
 # Остальные функции БД (save_or_update_report, get_last_report и т.д.) можно оставить как есть
 
 
@@ -423,53 +440,43 @@ async def send_daily_reminder_to_admins():
 
 
 async def send_weekly_reminder_to_users(event=None):
+    rows = await choice_of_ignoring_users()
 
+    if not rows:
+        # Если это ручная рассылка при помощи команды
+        if event:
+            await event.message.edit("Нет пользователей, не ответивших на этой неделе",
+                attachments=[get_statistic_kb()]
+            )
+        return
 
-    #Получаем текущую неделю
-    today = get_today_str()
-    iso_year, iso_week = get_iso_week(today)
+    # Определяем, кому слать отчёт о рассылке
+    report_receiver_id = event.from_user.user_id if event else ADMINS_IDS[0]
 
-    #Проверяем всех, кто не ответил на этой неделе
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("""
-        SELECT DISTINCT user_id,user_name,street,house_number 
-        FROM trash_reports 
-        WHERE (answer IS NULL OR answer ='') AND iso_year= ? AND iso_week = ?""",[iso_year, iso_week]) as cursor:
+    for (user_id, user_name, street, house_number) in rows:
+        # if user_id in ADMINS_IDS:
+        #     continue  # пропускаем админов — им уже шлём ежедневно
 
-            rows = await cursor.fetchall()
-            if not rows:
-                # Если это ручная рассылка при помощи команды
-                if event:
-                    await event.message.edit("Нет пользователей, не ответивших на этой неделе",
-                        attachments=[get_statistic_kb()]
-                    )
-                    return
+        try:
+            await bot.send_message(
+                user_id=user_id,
+                text="Напоминаем: пожалуйста, сообщите, забрали ли мусор у вашего дома?",
+                attachments=[get_yes_no_trash_kb()]
+            )
 
-            # Определяем, кому слать отчёт о рассылке
-            report_receiver_id = event.from_user.user_id if event else ADMINS_IDS[0]
-
-            for (user_id, user_name, street, house_number) in rows:
-                # if user_id in ADMINS_IDS:
-                #     continue  # пропускаем админов — им уже шлём ежедневно
-
-                try:
-                    await bot.send_message(
-                        user_id=user_id,
-                        text="Напоминаем: пожалуйста, сообщите, забрали ли мусор у вашего дома?",
-                        attachments=[get_yes_no_trash_kb()]
-                    )
-
-                    # Оповещение администратору в случае частного запроса
-                    await bot.send_message(user_id=report_receiver_id,
-                                           text=f'Напомнили пользователю:\n'
-                                                f'Имя: {user_name}\n'
-                                                f'Адрес: {street} {house_number}'
-                                           )
+            # Оповещение администратору в случае частного запроса
+            await bot.send_message(user_id=report_receiver_id,
+                                   text=f'Напомнили пользователю:\n'
+                                        f'Имя: {user_name}\n'
+                                        f'Адрес: {street} {house_number}'
+                                   )
 
 
 
-                except Exception as e:
-                    print(f"Не удалось отправить пользователю {user_id}: {e}")
+        except Exception as e:
+            text = f'Не удалось отправить пользователю \n\n{user_id}, {user_name}, {street} {house_number}\n\n{e}'
+            await bot.send_message(user_id=report_receiver_id,text=text)
+            print(text)
 
 
 
@@ -518,7 +525,6 @@ async def mailing_newsletter(event, message_for_news_letter):
 
 #Программы выполняется утром в понедельник
 async def users_to_new_week():
-    print('Добавление нового пользователя')
     today = datetime.now()
     iso_year_curr, iso_week_curr, _ = today.isocalendar()
 
@@ -919,10 +925,28 @@ async def handle_command_repeat_mailing(event:MessageCallback,context:MemoryCont
         return
 
     await context.set_state(Commands.confirm_repeat_mailing)
-    await message.edit(
-        "Вы уверены, что хотите совершить рассылку всем неответившим пользователям?",
-        attachments=[get_yes_no_kb()]
-    )
+
+    #Получение информации об игнорирующих пользователях
+    rows = await choice_of_ignoring_users()
+    if rows:
+        users = ''
+        number = 1
+        for row in rows:
+
+            user_id,user_name,street,house_number = row
+            users += f'\n\n{number}. {user_name}, {street} {house_number}'
+            number += 1
+
+
+        await message.edit(
+            f"Вы уверены, что хотите совершить рассылку неответившим пользователям?{users}",
+            attachments=[get_yes_no_kb()]
+        )
+    else:
+        await message.edit(
+            f"Нет пользователей без ответа",
+            attachments=[get_statistic_kb()]
+        )
 
 @router.message_callback(Commands.confirm_repeat_mailing,F.callback.payload.in_(['Да','Нет']))
 async def handle_confirm_repeat_mailing(event: MessageCallback, context: MemoryContext):
@@ -1021,6 +1045,7 @@ async def main():
     dp.include_routers(router)
     # await setup_bot_commands()
     # Настройка и запуск планировщика
+
     scheduler.add_job(
         send_daily_reminder_to_admins,
         CronTrigger(hour=10, minute=0),  # Каждый день
