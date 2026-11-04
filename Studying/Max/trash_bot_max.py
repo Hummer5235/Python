@@ -80,7 +80,7 @@ DB_PATH = "trash_report.db"
 dp.register_outer_middleware(GlobalMessageLoggerMiddleware())
 
 # -------------------------------------------
-scheduler = AsyncIOScheduler(timezone="Europe/Moscow")
+scheduler = AsyncIOScheduler()
 TZ = ZoneInfo("Europe/Moscow")
 
 # --- Константы и утилиты ---
@@ -1048,24 +1048,24 @@ async def main():
 
     scheduler.add_job(
         send_daily_reminder_to_admins,
-        CronTrigger(hour=10, minute=0),  # Каждый день
+        CronTrigger(hour=10, minute=0, timezone="Europe/Moscow"),
         id='weekly_poll_admins',
-        replace_existing=True  # <-- если задача уже есть, заменит её, а не добавит новую
-    )  # каждый день в 9:00
+        replace_existing=True
+    )
 
     scheduler.add_job(
         send_weekly_reminder_to_users,
-        CronTrigger(hour=16, minute=0,day_of_week='mon'),  # day_of_week='mon'
+        CronTrigger(hour=16, minute=0, day_of_week='mon', timezone="Europe/Moscow"),
         id='weekly_poll_users',
-        replace_existing=True  # <-- если задача уже есть, заменит её, а не добавит новую
-    )  # каждый день в 16:00
+        replace_existing=True
+    )
 
     scheduler.add_job(
         users_to_new_week,
-        CronTrigger(hour=9, minute=0, day_of_week='mon'),  # day_of_week='mon'
+        CronTrigger(hour=9, minute=0, day_of_week='mon', timezone="Europe/Moscow"),
         id='create_users_to_new_week',
-        replace_existing=True  # <-- если задача уже есть, заменит её, а не добавит новую
-    )  
+        replace_existing=True
+    )
     await users_to_new_week()
     scheduler.start()
     
